@@ -27,6 +27,11 @@ const password = process.env.PASSWORD;
 
   const page = await browser.newPage();
 
+  await page.setViewport({
+    width: 1920,
+    height: 1080,
+  });
+
   if (cookies) {
     console.log("Set cookie");
     await page.setCookie(...cookies);
@@ -59,16 +64,67 @@ const password = process.env.PASSWORD;
     await page.waitForTimeout(1000);
     await passwordInput.type(password);
     await page.waitForTimeout(1000);
-    const submitButton = await page.$x(
-      "//*[contains(@class, js-signin-submit)"
+
+    const submitButton = await page.waitForXPath(
+      '//button[starts-with(@class, "js-signin-submit")]'
     );
-    await submitButton.click();
+    await page.waitForTimeout(1000);
+    if (submitButton) {
+      await submitButton.click();
+    } else {
+      console.log("Button not found");
+      return;
+    }
 
     const isLogin = await page.waitForXPath('//div[@class="logoutheader"]');
+
     if (isLogin) {
-      const userBox = await page.waitForXPath('//a[@class="user-box"]').href;
-      console.log("Succesfully login into account: ");
-      //(?<=\/)\w+$ xpath get username
+      const username = await page.evaluate(() => {
+        const link = document.querySelector("a[class=user-box]").href;
+        const name = link.match(/(?<=\/)\w+$/)[0];
+        console.log(name);
+        return name;
+      });
+      await page.waitForTimeout(3000);
+
+      if (!username) {
+        console.log("Login failure");
+        return;
+      }
+
+      //сохранение куки
+      const cookies = await page.cookies();
+      await fs.writeFileSync(
+        `${__dirname}/cookies.json`,
+        JSON.stringify(cookies, null, 2)
+      );
+      console.log(`Username: ${username}, succesfully login. Cookies saved`);
+      //-----
+
+      const menuLink = await page.waitForXPath(
+        '//a[contains(@href, "/projects") and contains(@class, "header-menu-link")]',
+        { visible: true }
+      );
+
+      await menuLink.click();
+      await page.waitForTimeout(2000);
+
+      const card = await page.waitForXPath(
+        '//div[starts-with(@class,"card__content")]',
+        {
+          visible: true,
+        }
+      );
+
+      if (!card) {
+        console.log("Cant load page with orders");
+      }
+
+      const cards = await page.evaluate(() => {
+        const title = document.querySelectorAll(".wants-card__header-title");
+      });
+      //div[contains(@class, "js-want-block-toggle-full")] -card description
+      //div[contains(@class, "wants-card__price")] -card-price
     }
   }
 })();
